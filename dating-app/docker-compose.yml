@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: datingapp
+      POSTGRES_USER: datingapp
+      POSTGRES_PASSWORD: datingapp
+    ports:
+      - "5432:5432"
+    volumes:
+      - datingapp_pgdata:/var/lib/postgresql/data
+
+volumes:
+  datingapp_pgdata:
+

@@ -1,0 +1,109 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Gender {
+  MAN
+  WOMAN
+  NON_BINARY
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
+enum SwipeAction {
+  LIKE
+  PASS
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  profile   Profile?
+  swipes    Swipe[]  @relation("Swiper")
+  messages  Message[] @relation("Sender")
+}
+
+model Profile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  name        String
+  age         Int
+  bio         String   @default("")
+  city        String   @default("")
+  gender      Gender   @default(PREFER_NOT_TO_SAY)
+  interests   String[] @default([])
+
+  photos      Photo[]
+
+  /// Discovery preferences (can expand to match your documentation)
+  minAge      Int      @default(18)
+  maxAge      Int      @default(99)
+  preferredGenders Gender[] @default([])
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Photo {
+  id        String   @id @default(cuid())
+  profileId String
+  createdAt DateTime @default(now())
+
+  url       String
+  order     Int      @default(0)
+
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+}
+
+model Swipe {
+  id          String      @id @default(cuid())
+  swiperId    String
+  targetId    String
+  action      SwipeAction
+  createdAt   DateTime    @default(now())
+
+  swiper      User        @relation("Swiper", fields: [swiperId], references: [id], onDelete: Cascade)
+
+  @@unique([swiperId, targetId])
+  @@index([targetId])
+}
+
+model Match {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+
+  userAId     String
+  userBId     String
+
+  messages    Message[]
+
+  @@unique([userAId, userBId])
+  @@index([userBId])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  matchId   String
+  senderId  String
+  createdAt DateTime @default(now())
+
+  text      String
+
+  match     Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  sender    User     @relation("Sender", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([matchId, createdAt])
+}
+
