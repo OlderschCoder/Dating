@@ -1,0 +1,202 @@
+Basic Information
+* First Name: Text Entry
+* Last Name: Text Entry (optional, public/private)
+* Age: Calculated from Birthdate
+* Gender:
+o Male
+o Female
+o Non-Binary
+o Prefer not to say
+o Transgender
+o Genderqueer
+* Sexual Orientation:
+o Heterosexual
+o Homosexual
+o Bisexual
+o Asexual
+o Pansexual
+o Queer
+* Location: City/Region (Display Distance Optional)
+Profile Pictures
+* Profile Photo: Upload one primary picture
+* Gallery: Upload additional photos or videos
+Personal Details
+* Biography/Description: Text Entry
+* Interests/Hobbies:
+o Sports
+o Arts
+o Music
+o Travel
+o Reading
+o Cooking
+o Gaming
+o Fitness
+* Likes/Dislikes: Food, Movies, Music, Activities specified by user
+* Relationship Status & Preferences:
+o Status: Single, Divorced, Widowed, Separated
+o Relationship Sought: Casual, Serious, Friendship, Networking
+* Occupational Details:
+o Finance
+o Education
+o Healthcare
+o Technology
+o Arts
+o Law
+o Hospitality
+o Construction
+* Educational Background: Predefined list of institutions and programs
+Lifestyle Choices
+* Dietary Preferences:
+o Vegan
+o Vegetarian
+o Omnivore
+o Gluten-Free
+o Keto
+o Paleo
+* Smoking Habits:
+o Non-Smoker
+o Occasional Smoker
+o Regular Smoker
+o Trying to Quit
+* Drinking Habits:
+o Non-Drinker
+o Social Drinker
+o Regular Drinker
+o Recovering
+* Exercise Frequency:
+o Never
+o Occasionally
+o Regularly
+o Daily
+o Multiple times a day
+* Pets:
+o Cats
+o Dogs
+o None
+o Exotic Pets
+o Fish
+o Birds
+o Other (specify)
+Search Preferences
+* Preferred Age Range: User defined range
+* Preferred Gender:
+o Male
+o Female
+o Non-Binary
+o Transgender
+o Any
+* Distance:
+o Within 10 miles
+o 25 miles
+o 50 miles
+o 100 miles
+o Any distance
+* Deal-breakers:
+o Smoking
+o Has Children
+o Religion
+o Education Level
+Social Aspects
+* Social Media Links:
+o Instagram
+o Facebook
+o Spotify
+o LinkedIn
+o Twitter
+* Certifications/Badges:
+o Verification status
+o Online Dating Safety badge
+o Active Member badge
+o Community Contributor
+* Languages Spoken:
+o English
+o Spanish
+o French
+o German
+o Chinese
+o Mandarin
+o Arabic
+o Hindi
+o Russian
+o Portuguese
+o Japanese
+o Italian
+Communication and Contact Information
+* Phone Number: Optional, for app verification or when user consents to share with others
+* Email Address: Required for account creation, can be used for updates and notifications
+* Address: Not typically displayed, but city or region is used for proximity matching
+* In-App Messaging: Secure messaging function for user communication
+Fun and Personality
+* Favorite Music/Movies/Books: Select from popular lists or specify personal favorites
+* Icebreaker Question:
+o What's your dream vacation?
+o If you could have dinner with any historical figure, who would it be?
+o What superpower would you like to have?
+* Memorable Travel Experiences: Text box to describe significant travel stories
+* Personal Causes/Values:
+o Environmentalism
+o Animal Rights
+o Human Rights
+o Volunteering
+o Social Justice
+o Science and Technology advocacy
+
+
+Main Tables
+Users
+* user_id: Primary Key
+* first_name: VARCHAR
+* last_name: VARCHAR
+* birthdate: DATE
+* age: INT (calculated if needed)
+* gender: ENUM('Male', 'Female', 'Non-Binary', 'Prefer not to say', 'Transgender', 'Genderqueer')
+* sexual_orientation: ENUM('Heterosexual', 'Homosexual', 'Bisexual', 'Asexual', 'Pansexual', 'Queer')
+* location: VARCHAR
+* phone_number: VARCHAR
+* email_address: VARCHAR
+* bio: TEXT
+Profile_Pictures
+* picture_id: Primary Key
+* user_id: Foreign Key References Users(user_id)
+* picture_url: VARCHAR
+* is_primary: BOOLEAN
+Child Tables
+Interests
+* interest_id: Primary Key
+* user_id: Foreign Key References Users(user_id)
+* interest: ENUM('Sports', 'Arts', 'Music', 'Travel', 'Reading', 'Cooking', 'Gaming', 'Fitness')
+Lifestyle_Choices
+* choice_id: Primary Key
+* user_id: Foreign Key References Users(user_id)
+* dietary_preference: ENUM('Vegan', 'Vegetarian', 'Omnivore', 'Gluten-Free', 'Keto', 'Paleo')
+* smoking_habit: ENUM('Non-Smoker', 'Occasional Smoker', 'Regular Smoker', 'Trying to Quit')
+* drinking_habit: ENUM('Non-Drinker', 'Social Drinker', 'Regular Drinker', 'Recovering')
+* exercise_frequency: ENUM('Never', 'Occasionally', 'Regularly', 'Daily', 'Multiple times a day')
+* pets: ENUM('Cats', 'Dogs', 'None', 'Exotic Pets', 'Fish', 'Birds', 'Other')
+Search_Preferences
+* preference_id: Primary Key
+* user_id: Foreign Key References Users(user_id)
+* preferred_age_min: INT
+* preferred_age_max: INT
+* preferred_gender: ENUM('Male', 'Female', 'Non-Binary', 'Transgender', 'Any')
+* distance: ENUM('Within 10 miles', '25 miles', '50 miles', '100 miles', 'Any distance')
+* deal_breakers: TEXT
+Social_Links
+* link_id: Primary Key
+* user_id: Foreign Key References Users(user_id)
+* platform: ENUM('Instagram', 'Facebook', 'Spotify', 'LinkedIn', 'Twitter')
+* link_url: VARCHAR
+Language_Spoken
+* language_id: Primary Key
+* user_id: Foreign Key References Users(user_id)
+* language: ENUM('English', 'Spanish', 'French', 'German', 'Chinese', 'Mandarin', 'Arabic', 'Hindi', 'Russian', 'Portuguese', 'Japanese', 'Italian')
+Preferences
+* preference_id: Primary Key
+* user_id: Foreign Key References Users(user_id)
+* favorite_music: TEXT
+* favorite_movies: TEXT
+* favorite_books: TEXT
+* icebreaker_question: VARCHAR
+* memorable_travel_experience: TEXT
+* causes_values: ENUM('Environmentalism', 'Animal Rights', 'Human Rights', 'Volunteering', 'Social Justice', 'Science and Technology advocacy')
+

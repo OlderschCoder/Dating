@@ -1,0 +1,111 @@
+1. Root Directory
+1.1. build.gradle (Project Level)
+* The primary build configuration file for the entire project. It includes settings for the build tools and repositories.
+1.2. settings.gradle
+* Lists all the modules to be included in the build.
+1.3. gradle.properties
+* Configures project-wide properties, such as JVM arguments or build options.
+1.4. local.properties
+* Stores local environment properties such as the Android SDK path. This file should not be committed to version control.
+1.5. /.gitignore
+* Specifies files and directories that should be ignored by version control.
+1.6. /gradle/
+* Contains files related to the Gradle build system.
+2. app/ Directory
+2.1. build.gradle (App Level)
+* Contains specific build configurations for the app module, including dependencies, SDK versions, and build types.
+2.2. src/ Directory
+* /main/
+o /java/
+* /com/example/mobinpx/ (Replace with your package name)
+* MainActivity.java: The entry point for the app, usually the first screen or dashboard.
+* SplashActivity.java: An optional splash screen shown on startup.
+* LoginActivity.java: Handles user authentication.
+* SignUpActivity.java: Manages the user registration process.
+* DashboardActivity.java: The main dashboard interface after the user logs in.
+* NotaryActivity.java: Manages notary-related tasks.
+* PaymentActivity.java: Handles payment processing through Stripe.
+* SettingsActivity.java: Manages user settings and preferences.
+* ProfileActivity.java: Displays and allows editing of user profile information.
+* ApiClient.java: Configures Retrofit or another HTTP client to interact with the backend API.
+* Repository.java: Implements data handling, connecting to local databases or remote APIs.
+* ViewModelFactory.java: Factory for creating instances of ViewModel classes.
+* AppViewModel.java: A base ViewModel class to manage UI-related data.
+* AuthenticationViewModel.java: Handles authentication logic.
+* PaymentViewModel.java: Manages payment-related logic.
+* NotaryViewModel.java: Handles data related to notary services.
+* StripeService.java: Integrates Stripe for payment processing.
+* LocationService.java: Manages location tracking and services.
+o /res/
+* /layout/
+* activity_main.xml: Layout file for the main dashboard.
+* activity_splash.xml: Layout for the splash screen.
+* activity_login.xml: Layout for the login screen.
+* activity_sign_up.xml: Layout for the sign-up screen.
+* activity_dashboard.xml: Layout for the dashboard.
+* activity_notary.xml: Layout for notary services.
+* activity_payment.xml: Layout for payment processing.
+* activity_settings.xml: Layout for the settings screen.
+* activity_profile.xml: Layout for the profile screen.
+* /values/
+* colors.xml: Defines app-specific color schemes.
+* styles.xml: Defines the overall styling and themes for the app.
+* strings.xml: Contains all the strings used in the app.
+* dimens.xml: Defines dimensions like padding, margins, etc.
+* themes.xml: Defines themes for the app, including day/night modes.
+* /drawable/
+* logo.png: The app logo.
+* ic_launcher.xml: Icons for the app.
+* background_splash.xml: Background image or design for the splash screen.
+* /mipmap/
+* Various launcher icons for different screen resolutions.
+* /menu/
+* menu_dashboard.xml: Menu options for the dashboard.
+* menu_profile.xml: Menu options for the profile screen.
+* /xml/
+* network_security_config.xml: Configures network security, such as allowing HTTPS connections.
+* /font/
+* Custom fonts for the app (optional).
+o /assets/
+* /images/: Stores images used in the app.
+* /fonts/: Custom fonts (if not stored in /res/font/).
+o /androidTest/
+* /java/com/example/mobinpx/
+* MainActivityTest.java: UI tests for MainActivity.
+* LoginActivityTest.java: UI tests for LoginActivity.
+o /test/
+* /java/com/example/mobinpx/
+* ApiClientTest.java: Unit tests for API client.
+* ViewModelTest.java: Unit tests for ViewModels.
+* RepositoryTest.java: Unit tests for data repository.
+* /AndroidManifest.xml
+o Declares app components like activities, services, permissions, and intents.
+* /java/
+o /com/example/mobinpx/
+* ApplicationClass.java: Initializes app-wide components, such as Dagger for dependency injection.
+* /resources/
+o /xml/
+* file_paths.xml: Specifies paths for file access (if needed).
+* /gradle/
+o /wrapper/
+* gradle-wrapper.properties: Configures the Gradle wrapper version.
+3. Libraries and Dependencies
+* Retrofit: For API interactions.
+* Gson: For JSON parsing.
+* Room: For local database management.
+* LiveData and ViewModel: For managing UI-related data in a lifecycle-conscious way.
+* Data Binding: For binding UI components in the layouts to data sources in the app.
+* Glide/Picasso: For image loading and caching.
+* Dagger/Hilt: For dependency injection (optional but recommended for larger projects).
+* Firebase: For push notifications, analytics, or crash reporting.
+* Stripe SDK: For handling payments.
+* Google Maps SDK: If location services and mapping are required.
+4. Optional: Kotlin Support
+If the app is to be written in Kotlin:
+* Add build.gradle Kotlin dependencies.
+* Rewrite or create files using Kotlin extensions and classes.
+
+
+
+
+

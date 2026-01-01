@@ -1,0 +1,159 @@
+Database Structure
+
+1. Core User Tables
+1.1 Users Table
+* Description: Stores essential user authentication and personal information.
+* Columns:
+o UserID (PK): Unique identifier for each user.
+o EmailAddress: User's email.
+o PasswordHash: Securely stored user password.
+o FirstName: User's first name.
+o LastName: User's last name.
+o DOB: Date of birth.
+o GenderID (FK): Foreign key referencing GenderLookup.
+* Options:
+* Male
+* Female
+* Non-Binary
+* Prefer not to say
+* Transgender
+* Genderqueer
+o CreateDate: Account creation date.
+o LastLogin: Last login timestamp.
+1.2 Profiles Table
+* Description: Contains additional profile information linked to users.
+* Columns:
+o ProfileID (PK): Unique identifier for each profile.
+o UserID (FK): Associated user ID from Users table.
+o Bio: Short biography text.
+o EducationID (FK): Foreign key referencing EducationLookup.
+* Options: Predefined list of educational institutions and programs.
+o OccupationID (FK): Foreign key referencing OccupationLookup.
+* Options:
+* Finance
+* Education
+* Healthcare
+* Technology
+* Arts
+* Law
+* Hospitality
+* Construction
+o RelationshipStatusID (FK): Foreign key referencing RelationshipStatusLookup.
+* Options:
+* Single
+* Divorced
+* Widowed
+* Separated
+2. Location and Preferences
+2.1 Preferences Table
+* Description: Stores preferences for matching.
+* Columns:
+o PreferenceID (PK): Unique identifier for each preference record.
+o UserID (FK): Linked to Users.UserID.
+o PreferredAgeRange: User-defined range.
+o PreferredGenderID (FK): Foreign key referencing GenderLookup.
+* Options: Same as GenderID Options in Users Table
+o LocationRadiusID (FK): Foreign key referencing LocationRadiusLookup.
+* Options:
+* Within 10 miles
+* 25 miles
+* 50 miles
+* 100 miles
+* Any distance
+o PreferredEducationLevelID (FK): Foreign key referencing EducationLookup.
+o PreferredOccupationID (FK): Foreign key referencing OccupationLookup.
+Lookup Tables
+GenderLookup
+* Columns:
+o GenderID (PK): Unique identifier for each gender type.
+o Gender: Description of gender type.
+EducationLookup
+* Columns:
+o EducationID (PK): Unique identifier for each education level.
+o EducationLevel: Description of the education level.
+OccupationLookup
+* Columns:
+o OccupationID (PK): Unique identifier for each occupation.
+o OccupationName: Description of the occupation.
+RelationshipStatusLookup
+* Columns:
+o RelationshipStatusID (PK): Unique identifier for each status.
+o Status: Description of relationship status.
+LocationRadiusLookup
+* Columns:
+o LocationRadiusID (PK): Unique identifier for each radius option.
+o RadiusDescription: Description of radius.
+3. Matching and Communication
+3.1 Matches Table
+* Description: Records matches between users.
+* Columns:
+o MatchID (PK): Unique identifier for each match.
+o User1ID (FK): UserID of one user.
+o User2ID (FK): UserID of the matched user.
+o MatchDate: Date when the match occurred.
+o StatusID (FK): Foreign key referencing MatchStatusLookup.
+* Options:
+* Active
+* Blocked
+MatchStatusLookup
+* Columns:
+o StatusID (PK): Unique identifier for each status.
+o StatusDescription: Description of match status.
+4. Image Management
+4.1 UserImages Table
+* Description: Manages images uploaded by users.
+* Columns:
+o ImageID (PK): Unique identifier for each image.
+o UserID (FK): Linked to Users.UserID.
+o ImageURL: URL of the stored image in cloud storage.
+o UploadDate: Date when the image was uploaded.
+o ApprovalStatusID (FK): Foreign key referencing ImageApprovalStatusLookup.
+* Options:
+* Pending
+* Approved
+* Rejected
+o ContentTypeID (FK): Foreign key referencing ImageContentTypeLookup.
+* Options:
+* Profile Photo
+* Gallery
+ImageApprovalStatusLookup
+* Columns:
+o ApprovalStatusID (PK): Unique identifier for each approval status.
+o StatusDescription: Description of image approval status.
+ImageContentTypeLookup
+* Columns:
+o ContentTypeID (PK): Unique identifier for each content type.
+o ContentTypeDescription: Description of type of content.
+5. Gamification and Social Interactions
+5.1 User Activities Table
+* Description: Logs various user activities for gamification.
+* Columns:
+o ActivityID (PK): Unique identifier for each activity.
+o UserID (FK): Linked to Users.UserID.
+o ActivityTypeID (FK): Foreign key referencing ActivityTypeLookup.
+* Options:
+* Login
+* Update Profile
+* Send Message
+o ActivityDate: Date of the activity.
+o PointsEarned: Points earned from the activity.
+ActivityTypeLookup
+* Columns:
+o ActivityTypeID (PK): Unique identifier for each activity type.
+o ActivityTypeName: Description of type of activity.
+5.2 Achievements Table
+* Description: Defines achievable milestones for users.
+* Columns:
+o AchievementID (PK): Unique identifier for each achievement.
+o Name: Name of the achievement.
+o Description: Description of the achievement.
+o PointValue: Points associated with the achievement.
+o UnlockCriteria: Criteria to unlock the achievement.
+5.3 User Achievements Table
+* Description: Tracks achievements unlocked by users.
+* Columns:
+o UserAchievementID (PK): Unique identifier for each user achievement.
+o UserID (FK): Linked to Users.UserID.
+o AchievementID (FK): Linked to Achievements.AchievementID.
+o UnlockedDate: Date when the achievement was unlocked.
+
