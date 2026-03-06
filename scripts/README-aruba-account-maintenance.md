@@ -1,78 +1,115 @@
-# Aruba Nightly Account Maintenance
+# Nightly Network Account Maintenance
 
-This script connects to each Aruba switch in an IP list, changes the admin password, and removes all local users except `admin` (or any additional accounts listed in `--keep-users`).
+This script now supports mixed vendors in one nightly run:
 
-## 1) Install dependency
+- Aruba 6300 (`platform=aruba_6300`)
+- Cisco 3700 (`platform=cisco_3700`)
+- FortiGate firewalls (`platform=fortigate`)
+
+For each device it will:
+
+1. Change the admin account password.
+2. Remove all local access users except `admin` (or `keep_users` overrides).
+3. Optionally write the new password into Azure Key Vault.
+
+---
+
+## 1) Install dependencies
 
 ```bash
 python3 -m pip install -r scripts/requirements-aruba-maintenance.txt
 ```
 
-## 2) Prepare switch list
+---
+
+## 2) Prepare inventory
 
 Edit:
 
 ```text
-scripts/aruba_switch_ips.txt
+scripts/network_devices.csv
 ```
 
-One switch IP or hostname per line.
+Format:
 
-## 3) Set secrets
+```csv
+host,platform,username,port,keep_users
+10.0.10.11,aruba_6300,admin,22,admin
+10.0.20.21,cisco_3700,admin,22,admin
+10.0.30.31,fortigate,admin,22,admin
+```
 
-Use environment variables so passwords are not stored in command history:
+`keep_users` is comma-separated (e.g. `admin,svc_backup`).
+
+---
+
+## 3) Provide passwords
+
+You can pass passwords using CLI args, env vars, or Azure Key Vault.
+
+Environment variable option:
 
 ```bash
-export ARUBA_CURRENT_PASSWORD='current_password_here'
-export ARUBA_NEW_ADMIN_PASSWORD='new_password_here'
+export NETWORK_CURRENT_PASSWORD='current_password_here'
+export NETWORK_NEW_ADMIN_PASSWORD='new_password_here'
 ```
 
-## 4) Test with dry-run first
+---
+
+## 4) Dry-run first
 
 ```bash
 python3 scripts/aruba_account_maintenance.py \
-  --ips-file scripts/aruba_switch_ips.txt \
+  --inventory-file scripts/network_devices.csv \
   --dry-run --verbose
 ```
+
+---
 
 ## 5) Run for real
 
 ```bash
 python3 scripts/aruba_account_maintenance.py \
-  --ips-file scripts/aruba_switch_ips.txt \
+  --inventory-file scripts/network_devices.csv \
   --verbose
 ```
 
+---
+
+## Azure Key Vault integration
+
+If `--key-vault-url` is provided:
+
+- current password can be read from `--current-password-secret-name`
+- new password can be written to `--new-password-secret-name` after a successful run
+
+Example:
+
+```bash
+python3 scripts/aruba_account_maintenance.py \
+  --inventory-file scripts/network_devices.csv \
+  --generate-new-password \
+  --key-vault-url "https://YOURVAULT.vault.azure.net/" \
+  --current-password-secret-name "network-admin-password" \
+  --new-password-secret-name "network-admin-password" \
+  --verbose
+```
+
+By default, Key Vault update is skipped if any device fails.
+Use `--write-on-partial-success` to override.
+
+---
+
 ## Nightly cron example (2:00 AM)
 
-1. Save secrets in a root-only file, for example:
-
-```bash
-sudo mkdir -p /etc/aruba
-sudo chmod 700 /etc/aruba
-sudo sh -c "printf '%s\n' \
-'ARUBA_CURRENT_PASSWORD=your_current_password' \
-'ARUBA_NEW_ADMIN_PASSWORD=your_new_password' \
-> /etc/aruba/account-maintenance.env"
-sudo chmod 600 /etc/aruba/account-maintenance.env
-```
-
-2. Add a cron entry:
-
-```bash
-sudo crontab -e
-```
+Store non-secret runtime values in cron command; keep secrets in Key Vault:
 
 ```cron
-0 2 * * * . /etc/aruba/account-maintenance.env && /usr/bin/python3 /workspace/scripts/aruba_account_maintenance.py --ips-file /workspace/scripts/aruba_switch_ips.txt >> /var/log/aruba_account_maintenance.log 2>&1
+0 2 * * * /usr/bin/python3 /workspace/scripts/aruba_account_maintenance.py --inventory-file /workspace/scripts/network_devices.csv --generate-new-password --key-vault-url https://YOURVAULT.vault.azure.net/ --current-password-secret-name network-admin-password --new-password-secret-name network-admin-password >> /var/log/network_account_maintenance.log 2>&1
 ```
 
-## Notes
+If not using Key Vault, source env vars from a locked-down file first:
 
-- Defaults target Aruba AOS-CX (`--device-type aruba_aoscx`).
-- If your Aruba model uses different CLI commands, override:
-  - `--show-users-command`
-  - `--set-admin-password-command`
-  - `--delete-user-command`
-  - `--save-command`
-- Always run `--dry-run` first after changing command templates.
+```cron
+0 2 * * * . /etc/network/account-maintenance.env && /usr/bin/python3 /workspace/scripts/aruba_account_maintenance.py --inventory-file /workspace/scripts/network_devices.csv >> /var/log/network_account_maintenance.log 2>&1
+```
