@@ -100,6 +100,48 @@ Use `--write-on-partial-success` to override.
 
 ---
 
+## Forced MFA (phone or laptop biometrics)
+
+Use `--require-mfa` to block execution until a user completes Microsoft Entra MFA.
+
+### Phone-based MFA (device code flow)
+
+Best for headless servers/terminals where the user approves sign-in on phone:
+
+```bash
+python3 scripts/aruba_account_maintenance.py \
+  --inventory-file scripts/network_devices.csv \
+  --require-mfa \
+  --mfa-method phone \
+  --mfa-auth-flow device_code \
+  --mfa-tenant-id "<tenant-guid>" \
+  --mfa-login-hint "admin@company.com" \
+  --verbose
+```
+
+### Laptop biometric MFA (browser flow)
+
+Best when using Windows Hello / passkey / platform biometric prompt in browser:
+
+```bash
+python3 scripts/aruba_account_maintenance.py \
+  --inventory-file scripts/network_devices.csv \
+  --require-mfa \
+  --mfa-method biometric \
+  --mfa-auth-flow browser \
+  --mfa-tenant-id "<tenant-guid>" \
+  --mfa-login-hint "admin@company.com" \
+  --verbose
+```
+
+Notes:
+
+- `--mfa-client-id` defaults to Azure CLI public client ID. You can supply your own app registration client ID.
+- Script sends an MFA claims challenge and validates token authentication method (`amr`) when available.
+- For strict enterprise enforcement, configure Conditional Access authentication strengths in Entra.
+
+---
+
 ## Nightly cron example (2:00 AM)
 
 Store non-secret runtime values in cron command; keep secrets in Key Vault:
@@ -113,3 +155,8 @@ If not using Key Vault, source env vars from a locked-down file first:
 ```cron
 0 2 * * * . /etc/network/account-maintenance.env && /usr/bin/python3 /workspace/scripts/aruba_account_maintenance.py --inventory-file /workspace/scripts/network_devices.csv >> /var/log/network_account_maintenance.log 2>&1
 ```
+
+Important:
+
+- Human MFA (`--require-mfa`) is interactive and usually not suitable for unattended nightly cron.
+- For unattended nightly runs, use managed identity/service principal to access Key Vault and enforce policy in Entra Conditional Access.

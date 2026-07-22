@@ -17,6 +17,7 @@ import argparse
 import csv
 import getpass
 import io
+import json
 import logging
 import os
 import re
@@ -25,7 +26,7 @@ import string
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Set
+from typing import Any, Dict, List, Optional, Sequence, Set
 
 try:
     from netmiko import ConnectHandler
@@ -42,10 +43,18 @@ try:
 except ImportError:
     AZURE_LIBS_AVAILABLE = False
 
+try:
+    from msal import PublicClientApplication
+
+    MSAL_AVAILABLE = True
+except ImportError:
+    MSAL_AVAILABLE = False
+
 
 HEADER_TOKENS = {"username", "user", "name"}
 ENV_CURRENT_PASSWORD = "NETWORK_CURRENT_PASSWORD"
 ENV_NEW_PASSWORD = "NETWORK_NEW_ADMIN_PASSWORD"
+DEFAULT_MFA_CLIENT_ID = "04b07795-8ddb-461a-bbee-02f9e1bf7b46"
 
 
 @dataclass(frozen=True)
@@ -108,6 +117,16 @@ class DeviceResult:
     error: str = ""
 
 
+@dataclass
+class MfaConfig:
+    required_method: str
+    auth_flow: str
+    tenant_id: str
+    client_id: str
+    login_hint: str
+    scopes: List[str]
+
+
 class AzureKeyVaultStore:
     def __init__(self, vault_url: str) -> None:
         if not AZURE_LIBS_AVAILABLE:
@@ -123,6 +142,110 @@ class AzureKeyVaultStore:
 
     def set_secret(self, name: str, value: str) -> None:
         self._client.set_secret(name, value)
+
+
+def build_mfa_claims_challenge(required_method: str) -> str:
+    claims_values = {
+        "any": ["mfa"],
+        "phone": ["sms", "otp", "phone"],
+        "biometric": ["fido", "fido2", "windowshello", "face", "fingerprint"],
+    }
+    payload = {
+        "id_token": {
+            "amr": {
+                "essential": True,
+                "values": claims_values[required_method],
+            }
+        }
+    }
+    return json.dumps(payload)
+
+
+def normalize_amr_claims(id_token_claims: Dict[str, Any]) -> Set[str]:
+    raw_amr = id_token_claims.get("amr")
+    if isinstance(raw_amr, str):
+        return {raw_amr.strip().lower()} if raw_amr.strip() else set()
+    if isinstance(raw_amr, list):
+        return {
+            str(item).strip().lower()
+            for item in raw_amr
+            if str(item).strip()
+        }
+    return set()
+
+
+def mfa_method_satisfied(required_method: str, amr_values: Set[str]) -> bool:
+    if not amr_values:
+        return False
+    if required_method == "any":
+        return bool(amr_values.intersection({"mfa", "otp", "sms", "phone", "fido", "fido2"}))
+    if required_method == "phone":
+        return bool(amr_values.intersection({"sms", "otp", "phone", "mfa"}))
+    if required_method == "biometric":
+        return bool(
+            amr_values.intersection(
+                {"fido", "fido2", "windowshello", "face", "fingerprint", "biometric"}
+            )
+        )
+    return False
+
+
+def enforce_mfa_or_raise(mfa_config: MfaConfig, logger: logging.Logger) -> None:
+    if not MSAL_AVAILABLE:
+        raise RuntimeError("Missing dependency: msal. Install with: pip install msal")
+
+    authority = f"https://login.microsoftonline.com/{mfa_config.tenant_id}"
+    app = PublicClientApplication(
+        client_id=mfa_config.client_id,
+        authority=authority,
+    )
+    claims_challenge = build_mfa_claims_challenge(mfa_config.required_method)
+
+    logger.info(
+        "MFA required (%s via %s flow). Waiting for interactive sign-in.",
+        mfa_config.required_method,
+        mfa_config.auth_flow,
+    )
+
+    if mfa_config.auth_flow == "device_code":
+        flow = app.initiate_device_flow(
+            scopes=mfa_config.scopes,
+            claims_challenge=claims_challenge,
+        )
+        if "user_code" not in flow:
+            raise RuntimeError(
+                f"Failed to start device-code flow: {flow.get('error_description', flow)}"
+            )
+        logger.info(flow.get("message", "Complete the device code sign-in prompt."))
+        result = app.acquire_token_by_device_flow(flow)
+    else:
+        result = app.acquire_token_interactive(
+            scopes=mfa_config.scopes,
+            login_hint=mfa_config.login_hint or None,
+            prompt="select_account",
+            claims_challenge=claims_challenge,
+        )
+
+    if "error" in result:
+        raise RuntimeError(
+            f"MFA authentication failed: {result.get('error_description', result['error'])}"
+        )
+
+    id_token_claims = result.get("id_token_claims") or {}
+    amr_values = normalize_amr_claims(id_token_claims)
+    if amr_values and not mfa_method_satisfied(mfa_config.required_method, amr_values):
+        raise RuntimeError(
+            "MFA was completed but not with an allowed method. "
+            f"Required='{mfa_config.required_method}', token amr={sorted(amr_values)}"
+        )
+
+    if amr_values:
+        logger.info("MFA satisfied via amr=%s", sorted(amr_values))
+    else:
+        logger.warning(
+            "MFA login succeeded but token did not expose amr claim. "
+            "Relying on tenant claims challenge enforcement."
+        )
 
 
 def build_logger(log_file: Path, verbose: bool) -> logging.Logger:
@@ -156,6 +279,15 @@ def parse_keep_users(raw_value: str, admin_account: str) -> Set[str]:
     }
     keep_users.add(admin_account.lower())
     return keep_users
+
+
+def parse_scopes(raw_value: str) -> List[str]:
+    scopes = [token.strip() for token in raw_value.split(",") if token.strip()]
+    if "openid" not in scopes:
+        scopes.append("openid")
+    if "profile" not in scopes:
+        scopes.append("profile")
+    return scopes
 
 
 def parse_inventory_csv(
@@ -473,6 +605,46 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Write new password to Key Vault even if some devices fail.",
     )
+    parser.add_argument(
+        "--require-mfa",
+        action="store_true",
+        help="Require interactive MFA sign-in before making any device changes.",
+    )
+    parser.add_argument(
+        "--mfa-method",
+        choices=["any", "phone", "biometric"],
+        default="any",
+        help="Allowed MFA method type to enforce.",
+    )
+    parser.add_argument(
+        "--mfa-auth-flow",
+        choices=["browser", "device_code"],
+        default="browser",
+        help="Use browser or device-code flow for MFA prompt.",
+    )
+    parser.add_argument(
+        "--mfa-tenant-id",
+        default=os.getenv("AZURE_TENANT_ID", ""),
+        help="Microsoft Entra tenant ID used for MFA sign-in.",
+    )
+    parser.add_argument(
+        "--mfa-client-id",
+        default=os.getenv("MFA_CLIENT_ID", DEFAULT_MFA_CLIENT_ID),
+        help=(
+            "Public client application ID used for interactive MFA. "
+            "Defaults to Azure CLI client ID unless MFA_CLIENT_ID is set."
+        ),
+    )
+    parser.add_argument(
+        "--mfa-login-hint",
+        default=os.getenv("MFA_LOGIN_HINT", ""),
+        help="Optional user principal (email) to prefill MFA sign-in.",
+    )
+    parser.add_argument(
+        "--mfa-scopes",
+        default="openid,profile,offline_access",
+        help="Comma-separated scopes for MFA sign-in token request.",
+    )
 
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--verbose", action="store_true")
@@ -497,6 +669,24 @@ def main() -> int:
             logger.info("Azure Key Vault enabled: %s", args.key_vault_url)
         except Exception as exc:
             logger.error("Unable to initialize Azure Key Vault client: %s", exc)
+            return 2
+
+    if args.require_mfa:
+        if not args.mfa_tenant_id:
+            logger.error("--mfa-tenant-id is required when --require-mfa is enabled.")
+            return 2
+        mfa_config = MfaConfig(
+            required_method=args.mfa_method,
+            auth_flow=args.mfa_auth_flow,
+            tenant_id=args.mfa_tenant_id,
+            client_id=args.mfa_client_id,
+            login_hint=args.mfa_login_hint,
+            scopes=parse_scopes(args.mfa_scopes),
+        )
+        try:
+            enforce_mfa_or_raise(mfa_config, logger)
+        except Exception as exc:
+            logger.error("MFA enforcement failed: %s", exc)
             return 2
 
     try:
