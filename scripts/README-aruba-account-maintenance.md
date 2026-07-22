@@ -176,3 +176,11 @@ Important:
 
 - Human MFA (`--require-mfa`) is interactive and usually not suitable for unattended nightly cron.
 - For unattended nightly runs, use managed identity/service principal to access Key Vault and enforce policy in Entra Conditional Access.
+
+---
+
+## Supporting policy and training docs
+
+- `scripts/ADMIN-SOP-fido2.md`
+- `scripts/HELPDESK-PLAYBOOK-fido2.md`
+- `scripts/USER-STEP-BY-STEP-CONFIGURATION.md`
