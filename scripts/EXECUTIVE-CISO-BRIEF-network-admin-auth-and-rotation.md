@@ -219,3 +219,7 @@ This solution materially improves privileged network access control maturity by 
 
 Its benefits are significant, but security outcomes depend on disciplined rollout, policy guardrails, and operational governance around exceptions and break-glass access.
 
+For the detailed threat, exploit-path, treatment, evidence, and residual-risk matrix, see:
+
+- `scripts/ISSUES-RISKS-AND-MITIGATIONS.md`
+
