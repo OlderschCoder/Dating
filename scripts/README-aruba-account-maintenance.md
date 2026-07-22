@@ -249,3 +249,4 @@ Important:
 - `scripts/HELPDESK-PLAYBOOK-fido2.md`
 - `scripts/USER-STEP-BY-STEP-CONFIGURATION.md`
 - `scripts/EXECUTIVE-CISO-BRIEF-network-admin-auth-and-rotation.md`
+- `scripts/DOCUMENTATION-STANDARD.md`
