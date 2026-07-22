@@ -54,9 +54,12 @@ except ImportError:
 
 try:
     from discover_network_devices import (
+        build_delta_rows as discovery_build_delta_rows,
         expand_cidrs as discovery_expand_cidrs,
         parse_required_ports as discovery_parse_required_ports,
         probe_host as discovery_probe_host,
+        read_baseline_inventory as discovery_read_baseline_inventory,
+        write_delta_csv as discovery_write_delta_csv,
         write_supported_csv as discovery_write_supported_csv,
         write_unknown_csv as discovery_write_unknown_csv,
     )
@@ -354,6 +357,17 @@ def run_embedded_discovery(args: argparse.Namespace, logger: logging.Logger) -> 
         include_unknown=args.discover_include_unknown_in_output,
     )
     unknown_count = discovery_write_unknown_csv(unknown_csv=unknown_csv, rows=unknown)
+    delta_count = 0
+    if args.discover_baseline_csv:
+        baseline = discovery_read_baseline_inventory(Path(args.discover_baseline_csv))
+        delta_rows = discovery_build_delta_rows(
+            discovered=discovered,
+            baseline=baseline,
+        )
+        delta_count = discovery_write_delta_csv(
+            Path(args.discover_delta_csv),
+            delta_rows,
+        )
 
     logger.info(
         "Embedded discovery complete. Alive: %d, Supported rows: %d, Unknown rows: %d",
@@ -363,6 +377,13 @@ def run_embedded_discovery(args: argparse.Namespace, logger: logging.Logger) -> 
     )
     logger.info("Embedded discovery wrote inventory file: %s", output_csv)
     logger.info("Embedded discovery wrote unknown review file: %s", unknown_csv)
+    if args.discover_baseline_csv:
+        logger.info(
+            "Embedded discovery wrote delta report: %s (%d row(s)) using baseline %s",
+            args.discover_delta_csv,
+            delta_count,
+            args.discover_baseline_csv,
+        )
 
     return output_csv
 
@@ -681,6 +702,19 @@ def parse_args() -> argparse.Namespace:
         "--discover-unknown-csv",
         default="network_devices_unknown.csv",
         help="Embedded discovery unknown-host review CSV path.",
+    )
+    parser.add_argument(
+        "--discover-baseline-csv",
+        default="",
+        help=(
+            "Optional existing inventory baseline used to generate embedded "
+            "discovery delta report (new, changed, missing, rogue)."
+        ),
+    )
+    parser.add_argument(
+        "--discover-delta-csv",
+        default="network_devices_delta.csv",
+        help="Embedded discovery delta report CSV path.",
     )
     parser.add_argument(
         "--discover-require-open-ports",

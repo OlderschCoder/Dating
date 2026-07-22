@@ -21,7 +21,7 @@ import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List, Optional, Sequence, Set
+from typing import Dict, Iterable, List, Sequence, Set
 from urllib.error import URLError
 from urllib.request import urlopen
 
@@ -41,6 +41,21 @@ class ProbeResult:
     snmp_descr: str = ""
     detected_platform: str = ""
     reason: str = ""
+
+
+def read_baseline_inventory(baseline_csv: Path) -> Dict[str, str]:
+    baseline: Dict[str, str] = {}
+    if not baseline_csv.exists():
+        return baseline
+    with baseline_csv.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            host = (row.get("host") or "").strip()
+            platform = (row.get("platform") or "").strip().lower()
+            if not host:
+                continue
+            baseline[host] = platform
+    return baseline
 
 
 def parse_args() -> argparse.Namespace:
@@ -63,6 +78,19 @@ def parse_args() -> argparse.Namespace:
         "--unknown-csv",
         default="network_devices_unknown.csv",
         help="Output CSV path for hosts with unknown platform.",
+    )
+    parser.add_argument(
+        "--baseline-csv",
+        default="",
+        help=(
+            "Optional existing inventory CSV (host,platform,...) used to create "
+            "delta report (new, changed, missing, rogue)."
+        ),
+    )
+    parser.add_argument(
+        "--delta-csv",
+        default="network_devices_delta.csv",
+        help="Delta report output path when --baseline-csv is supplied.",
     )
     parser.add_argument("--username", default="admin")
     parser.add_argument("--port", type=int, default=22)
@@ -291,6 +319,111 @@ def write_unknown_csv(unknown_csv: Path, rows: Iterable[ProbeResult]) -> int:
     return count
 
 
+def build_delta_rows(
+    *,
+    discovered: Sequence[ProbeResult],
+    baseline: Dict[str, str],
+) -> List[Dict[str, str]]:
+    rows: List[Dict[str, str]] = []
+    discovered_by_host = {item.host: item for item in discovered}
+
+    for host, item in discovered_by_host.items():
+        baseline_platform = baseline.get(host, "")
+        detected_platform = item.detected_platform or "unknown"
+
+        if not baseline_platform:
+            status = (
+                "NEW_SUPPORTED"
+                if item.detected_platform
+                else "NEW_ROGUE_UNKNOWN"
+            )
+            rows.append(
+                {
+                    "host": host,
+                    "status": status,
+                    "baseline_platform": "",
+                    "detected_platform": detected_platform,
+                    "notes": item.reason,
+                }
+            )
+            continue
+
+        if not item.detected_platform:
+            rows.append(
+                {
+                    "host": host,
+                    "status": "ROGUE_UNKNOWN",
+                    "baseline_platform": baseline_platform,
+                    "detected_platform": "unknown",
+                    "notes": item.reason,
+                }
+            )
+            continue
+
+        if baseline_platform != item.detected_platform:
+            rows.append(
+                {
+                    "host": host,
+                    "status": "PLATFORM_CHANGED",
+                    "baseline_platform": baseline_platform,
+                    "detected_platform": item.detected_platform,
+                    "notes": "Detected platform differs from baseline inventory",
+                }
+            )
+            continue
+
+        rows.append(
+            {
+                "host": host,
+                "status": "KNOWN_SUPPORTED",
+                "baseline_platform": baseline_platform,
+                "detected_platform": item.detected_platform,
+                "notes": "Matches baseline",
+            }
+        )
+
+    for host, baseline_platform in baseline.items():
+        if host in discovered_by_host:
+            continue
+        rows.append(
+            {
+                "host": host,
+                "status": "MISSING_FROM_SCAN",
+                "baseline_platform": baseline_platform,
+                "detected_platform": "",
+                "notes": "Present in baseline but not seen in current scan",
+            }
+        )
+
+    def _sort_key(row: Dict[str, str]) -> tuple[int, object]:
+        host = row["host"]
+        try:
+            return (0, ipaddress.ip_address(host))
+        except ValueError:
+            return (1, host)
+
+    rows.sort(key=_sort_key)
+    return rows
+
+
+def write_delta_csv(delta_csv: Path, rows: Sequence[Dict[str, str]]) -> int:
+    with delta_csv.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=[
+                "host",
+                "status",
+                "baseline_platform",
+                "detected_platform",
+                "notes",
+            ],
+        )
+        writer.writeheader()
+        for row in rows:
+            writer.writerow(row)
+    return len(rows)
+
+
 def parse_required_ports(value: str) -> List[int]:
     ports: List[int] = []
     for token in value.split(","):
@@ -352,6 +485,11 @@ def main() -> int:
         include_unknown=args.include_unknown_in_output,
     )
     unknown_count = write_unknown_csv(unknown_csv=unknown_csv, rows=unknown)
+    delta_count = 0
+    if args.baseline_csv:
+        baseline = read_baseline_inventory(Path(args.baseline_csv))
+        delta_rows = build_delta_rows(discovered=discovered, baseline=baseline)
+        delta_count = write_delta_csv(Path(args.delta_csv), delta_rows)
 
     print(
         "Done. Alive hosts: {alive}, Supported detected: {supported}, Unknown: {unknown}".format(
@@ -362,6 +500,11 @@ def main() -> int:
     )
     print(f"Wrote supported inventory: {output_csv} ({supported_count} row(s))")
     print(f"Wrote unknown review file: {unknown_csv} ({unknown_count} row(s))")
+    if args.baseline_csv:
+        print(
+            f"Wrote delta report: {args.delta_csv} ({delta_count} row(s)) "
+            f"using baseline {args.baseline_csv}"
+        )
     if args.snmp_community and not shutil.which("snmpget"):
         print(
             "NOTE: snmpget not found; SNMP fingerprinting skipped.",

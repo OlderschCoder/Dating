@@ -12,6 +12,12 @@ For each device it will:
 2. Remove all local access users except `admin` (or `keep_users` overrides).
 3. Optionally write the new password into Azure Key Vault.
 
+When discovery mode is used, each run can also update visibility for:
+
+- new devices
+- rogue/unknown devices
+- platform changes versus baseline inventory
+
 ---
 
 ## 1) Install dependencies
@@ -69,6 +75,8 @@ python3 scripts/aruba_account_maintenance.py \
   --discover-cidrs "10.0.10.0/24,10.0.20.0/24,10.0.30.0/24" \
   --discover-output-csv scripts/network_devices.csv \
   --discover-unknown-csv scripts/network_devices_unknown.csv \
+  --discover-baseline-csv scripts/network_devices.csv \
+  --discover-delta-csv scripts/network_devices_delta.csv \
   --generate-new-password \
   --verbose
 ```
@@ -79,6 +87,8 @@ Optional SNMP-assisted fingerprinting (more accurate in either mode):
 python3 scripts/discover_network_devices.py \
   --cidrs "10.0.10.0/24,10.0.20.0/24,10.0.30.0/24" \
   --snmp-community "<community>" \
+  --baseline-csv scripts/network_devices.csv \
+  --delta-csv scripts/network_devices_delta.csv \
   --output-csv scripts/network_devices.csv \
   --unknown-csv scripts/network_devices_unknown.csv
 ```
@@ -88,6 +98,12 @@ What it does:
 - probes likely live hosts on TCP 22/443 by default
 - fingerprints devices as `aruba_6300`, `cisco_3700`, or `fortigate` where possible
 - writes unrecognized hosts to `network_devices_unknown.csv` for manual review
+- can write `network_devices_delta.csv` (when baseline is provided) with statuses:
+  - `NEW_SUPPORTED`
+  - `NEW_ROGUE_UNKNOWN`
+  - `ROGUE_UNKNOWN`
+  - `PLATFORM_CHANGED`
+  - `MISSING_FROM_SCAN`
 
 ---
 

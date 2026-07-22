@@ -12,7 +12,7 @@
 
 This solution automates high-risk network administration controls across Aruba 6300 switches, Cisco 3700 switches, and FortiGate firewalls.
 
-It provides three primary outcomes:
+It provides four primary outcomes:
 
 1. **Automated credential hygiene**  
    Nightly (or scheduled) admin password rotation across supported network devices.
@@ -20,6 +20,8 @@ It provides three primary outcomes:
    Removes local access accounts other than approved admins (default: `admin` only).
 3. **Stronger identity controls**  
    Supports enforced MFA methods (phone, biometric, FIDO2 security key) for attended runs and integrates with Entra Conditional Access strategy.
+4. **Continuous network visibility update**  
+   Each discovery-enabled run can identify newly seen devices, rogue/unknown devices, and platform changes against baseline inventory.
 
 The program reduces credential exposure windows, limits standing privileged access, and creates a repeatable control that is auditable.
 
@@ -68,9 +70,10 @@ The main automation (`aruba_account_maintenance.py`) performs, per device:
 2. **(Optional) discovery phase**
    - Scans provided subnets for live hosts.
    - Fingerprints likely vendor/platform by SSH banner, HTTPS response title, and optional SNMP `sysDescr`.
-   - Produces:
-     - supported inventory CSV
-     - unknown hosts CSV for review
+    - Produces:
+      - supported inventory CSV
+      - unknown hosts CSV for review
+      - optional delta CSV (new, rogue, changed, and missing-vs-baseline statuses)
 3. **(Optional) MFA enforcement**
    - Interactive authentication via Microsoft identity platform.
    - Claims challenge requests required auth method.
@@ -95,6 +98,7 @@ The main automation (`aruba_account_maintenance.py`) performs, per device:
 - Run log (`network_account_maintenance.log` by default)
 - Device processing status summary
 - Unknown-device review file (during discovery)
+- Optional delta report (`network_devices_delta.csv`) for change/rogue/new device analysis
 
 This provides operational evidence for audits and security reviews.
 
