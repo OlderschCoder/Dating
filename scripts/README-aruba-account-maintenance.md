@@ -45,6 +45,10 @@ host,platform,username,port,keep_users
 
 ## 2b) Auto-populate inventory by scanning your network
 
+You now have two options:
+
+### Option A: standalone discovery script (individual run)
+
 If you run from a host inside your network, you can generate a starter inventory:
 
 ```bash
@@ -56,7 +60,20 @@ python3 scripts/discover_network_devices.py \
   --keep-users admin
 ```
 
-Optional SNMP-assisted fingerprinting (more accurate):
+### Option B: embedded discovery in maintenance run
+
+This will discover first, then continue directly into password rotation/account cleanup:
+
+```bash
+python3 scripts/aruba_account_maintenance.py \
+  --discover-cidrs "10.0.10.0/24,10.0.20.0/24,10.0.30.0/24" \
+  --discover-output-csv scripts/network_devices.csv \
+  --discover-unknown-csv scripts/network_devices_unknown.csv \
+  --generate-new-password \
+  --verbose
+```
+
+Optional SNMP-assisted fingerprinting (more accurate in either mode):
 
 ```bash
 python3 scripts/discover_network_devices.py \

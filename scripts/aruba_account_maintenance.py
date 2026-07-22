@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import csv
 import getpass
+import ipaddress
 import io
 import json
 import logging
@@ -24,6 +25,7 @@ import re
 import secrets
 import string
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Set
@@ -49,6 +51,19 @@ try:
     MSAL_AVAILABLE = True
 except ImportError:
     MSAL_AVAILABLE = False
+
+try:
+    from discover_network_devices import (
+        expand_cidrs as discovery_expand_cidrs,
+        parse_required_ports as discovery_parse_required_ports,
+        probe_host as discovery_probe_host,
+        write_supported_csv as discovery_write_supported_csv,
+        write_unknown_csv as discovery_write_unknown_csv,
+    )
+
+    DISCOVERY_LIB_AVAILABLE = True
+except ImportError:
+    DISCOVERY_LIB_AVAILABLE = False
 
 
 HEADER_TOKENS = {"username", "user", "name"}
@@ -291,6 +306,65 @@ def parse_scopes(raw_value: str) -> List[str]:
     if "profile" not in scopes:
         scopes.append("profile")
     return scopes
+
+
+def run_embedded_discovery(args: argparse.Namespace, logger: logging.Logger) -> Path:
+    if not DISCOVERY_LIB_AVAILABLE:
+        raise RuntimeError(
+            "Embedded discovery unavailable: cannot import discover_network_devices.py"
+        )
+
+    required_ports = discovery_parse_required_ports(args.discover_require_open_ports)
+    hosts = discovery_expand_cidrs(args.discover_cidrs, args.discover_max_hosts)
+    logger.info(
+        "Embedded discovery scanning %d host(s) across %s",
+        len(hosts),
+        args.discover_cidrs,
+    )
+
+    discovered = []
+    with ThreadPoolExecutor(max_workers=max(1, args.discover_threads)) as pool:
+        futures = {
+            pool.submit(
+                discovery_probe_host,
+                host,
+                required_ports,
+                args.discover_connect_timeout,
+                args.discover_http_timeout,
+                args.discover_snmp_community,
+            ): host
+            for host in hosts
+        }
+        for future in as_completed(futures):
+            result = future.result()
+            if result.is_alive:
+                discovered.append(result)
+
+    discovered.sort(key=lambda item: ipaddress.ip_address(item.host))
+    unknown = [item for item in discovered if not item.detected_platform]
+    output_csv = Path(args.discover_output_csv)
+    unknown_csv = Path(args.discover_unknown_csv)
+
+    supported_count = discovery_write_supported_csv(
+        output_csv=output_csv,
+        rows=discovered,
+        username=args.username,
+        port=args.port,
+        keep_users=args.keep_users,
+        include_unknown=args.discover_include_unknown_in_output,
+    )
+    unknown_count = discovery_write_unknown_csv(unknown_csv=unknown_csv, rows=unknown)
+
+    logger.info(
+        "Embedded discovery complete. Alive: %d, Supported rows: %d, Unknown rows: %d",
+        len(discovered),
+        supported_count,
+        unknown_count,
+    )
+    logger.info("Embedded discovery wrote inventory file: %s", output_csv)
+    logger.info("Embedded discovery wrote unknown review file: %s", unknown_csv)
+
+    return output_csv
 
 
 def parse_inventory_csv(
@@ -562,7 +636,7 @@ def parse_args() -> argparse.Namespace:
             "Cisco 3700, and FortiGate."
         )
     )
-    source_group = parser.add_mutually_exclusive_group(required=True)
+    source_group = parser.add_mutually_exclusive_group(required=False)
     source_group.add_argument(
         "--inventory-file",
         help=(
@@ -573,6 +647,13 @@ def parse_args() -> argparse.Namespace:
     source_group.add_argument(
         "--ips-file",
         help="Legacy mode: text file with one host per line.",
+    )
+    source_group.add_argument(
+        "--discover-cidrs",
+        help=(
+            "Embedded discovery mode. Comma-separated CIDRs to scan before "
+            "running account maintenance."
+        ),
     )
 
     parser.add_argument(
@@ -591,6 +672,55 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--timeout", type=int, default=20)
     parser.add_argument("--command-timeout", type=int, default=30)
     parser.add_argument("--keep-users", default="admin")
+    parser.add_argument(
+        "--discover-output-csv",
+        default="network_devices_discovered.csv",
+        help="Embedded discovery output inventory CSV path.",
+    )
+    parser.add_argument(
+        "--discover-unknown-csv",
+        default="network_devices_unknown.csv",
+        help="Embedded discovery unknown-host review CSV path.",
+    )
+    parser.add_argument(
+        "--discover-require-open-ports",
+        default="22,443",
+        help="Embedded discovery liveness ports (comma-separated).",
+    )
+    parser.add_argument(
+        "--discover-snmp-community",
+        default="",
+        help="Optional SNMP v2c community used by embedded discovery.",
+    )
+    parser.add_argument(
+        "--discover-threads",
+        type=int,
+        default=128,
+        help="Worker thread count for embedded discovery.",
+    )
+    parser.add_argument(
+        "--discover-connect-timeout",
+        type=float,
+        default=0.8,
+        help="TCP connection timeout for embedded discovery.",
+    )
+    parser.add_argument(
+        "--discover-http-timeout",
+        type=float,
+        default=1.5,
+        help="HTTPS probe timeout for embedded discovery.",
+    )
+    parser.add_argument(
+        "--discover-max-hosts",
+        type=int,
+        default=4096,
+        help="Maximum host count to expand from --discover-cidrs.",
+    )
+    parser.add_argument(
+        "--discover-include-unknown-in-output",
+        action="store_true",
+        help="Include unknown rows in embedded discovery output CSV.",
+    )
 
     parser.add_argument("--key-vault-url")
     parser.add_argument(
@@ -667,6 +797,16 @@ def main() -> int:
     logger = build_logger(Path(args.log_file), args.verbose)
 
     default_keep_users = parse_keep_users(args.keep_users, args.admin_account)
+    selected_sources = [
+        bool(args.inventory_file),
+        bool(args.ips_file),
+        bool(args.discover_cidrs),
+    ]
+    if sum(1 for item in selected_sources if item) != 1:
+        logger.error(
+            "Select exactly one inventory source: --inventory-file, --ips-file, or --discover-cidrs."
+        )
+        return 2
 
     keyvault: Optional[AzureKeyVaultStore] = None
     if args.key_vault_url:
@@ -732,16 +872,12 @@ def main() -> int:
 
     if args.inventory_file:
         inventory_file = Path(args.inventory_file)
-        if not inventory_file.exists():
-            logger.error("Inventory file not found: %s", inventory_file)
+    elif args.discover_cidrs:
+        try:
+            inventory_file = run_embedded_discovery(args, logger)
+        except Exception as exc:
+            logger.error("Embedded discovery failed: %s", exc)
             return 2
-        targets = parse_inventory_csv(
-            inventory_file=inventory_file,
-            default_username=args.username,
-            default_port=args.port,
-            default_keep_users=default_keep_users,
-            admin_account=args.admin_account,
-        )
     else:
         ips_file = Path(args.ips_file)
         if not ips_file.exists():
@@ -753,6 +889,19 @@ def main() -> int:
             username=args.username,
             port=args.port,
             keep_users=default_keep_users,
+        )
+        inventory_file = None
+
+    if inventory_file is not None:
+        if not inventory_file.exists():
+            logger.error("Inventory file not found: %s", inventory_file)
+            return 2
+        targets = parse_inventory_csv(
+            inventory_file=inventory_file,
+            default_username=args.username,
+            default_port=args.port,
+            default_keep_users=default_keep_users,
+            admin_account=args.admin_account,
         )
 
     if not targets:
