@@ -134,10 +134,26 @@ python3 scripts/aruba_account_maintenance.py \
   --verbose
 ```
 
+### Optional hardware security key (FIDO2)
+
+Use this mode if you want sign-in to require a FIDO2 hardware key (for example, a Cryptnox-compatible key configured in Microsoft Entra):
+
+```bash
+python3 scripts/aruba_account_maintenance.py \
+  --inventory-file scripts/network_devices.csv \
+  --require-mfa \
+  --mfa-method security_key \
+  --mfa-auth-flow browser \
+  --mfa-tenant-id "<tenant-guid>" \
+  --mfa-login-hint "admin@company.com" \
+  --verbose
+```
+
 Notes:
 
 - `--mfa-client-id` defaults to Azure CLI public client ID. You can supply your own app registration client ID.
 - Script sends an MFA claims challenge and validates token authentication method (`amr`) when available.
+- Hardware key enforcement depends on your Entra authentication methods and Conditional Access policies.
 - For strict enterprise enforcement, configure Conditional Access authentication strengths in Entra.
 
 ---

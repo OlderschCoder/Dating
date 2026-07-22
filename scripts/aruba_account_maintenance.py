@@ -149,6 +149,7 @@ def build_mfa_claims_challenge(required_method: str) -> str:
         "any": ["mfa"],
         "phone": ["sms", "otp", "phone"],
         "biometric": ["fido", "fido2", "windowshello", "face", "fingerprint"],
+        "security_key": ["fido", "fido2"],
     }
     payload = {
         "id_token": {
@@ -187,6 +188,8 @@ def mfa_method_satisfied(required_method: str, amr_values: Set[str]) -> bool:
                 {"fido", "fido2", "windowshello", "face", "fingerprint", "biometric"}
             )
         )
+    if required_method == "security_key":
+        return bool(amr_values.intersection({"fido", "fido2"}))
     return False
 
 
@@ -612,9 +615,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--mfa-method",
-        choices=["any", "phone", "biometric"],
+        choices=["any", "phone", "biometric", "security_key"],
         default="any",
-        help="Allowed MFA method type to enforce.",
+        help=(
+            "Allowed MFA method type to enforce. "
+            "Use security_key for FIDO2 hardware keys."
+        ),
     )
     parser.add_argument(
         "--mfa-auth-flow",
