@@ -1,0 +1,4 @@
+host,platform,username,port,keep_users
+10.0.10.11,aruba_6300,admin,22,admin
+10.0.20.21,cisco_3700,admin,22,admin
+10.0.30.31,fortigate,admin,22,admin

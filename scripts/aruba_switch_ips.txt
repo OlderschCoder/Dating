@@ -1,0 +1,5 @@
+# One IP or hostname per line
+# Lines beginning with # are ignored
+10.0.10.11
+10.0.10.12
+10.0.10.13

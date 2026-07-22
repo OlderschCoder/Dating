@@ -1,0 +1,4 @@
+netmiko
+azure-identity
+azure-keyvault-secrets
+msal
