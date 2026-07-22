@@ -43,6 +43,37 @@ host,platform,username,port,keep_users
 
 ---
 
+## 2b) Auto-populate inventory by scanning your network
+
+If you run from a host inside your network, you can generate a starter inventory:
+
+```bash
+python3 scripts/discover_network_devices.py \
+  --cidrs "10.0.10.0/24,10.0.20.0/24,10.0.30.0/24" \
+  --output-csv scripts/network_devices.csv \
+  --unknown-csv scripts/network_devices_unknown.csv \
+  --username admin \
+  --keep-users admin
+```
+
+Optional SNMP-assisted fingerprinting (more accurate):
+
+```bash
+python3 scripts/discover_network_devices.py \
+  --cidrs "10.0.10.0/24,10.0.20.0/24,10.0.30.0/24" \
+  --snmp-community "<community>" \
+  --output-csv scripts/network_devices.csv \
+  --unknown-csv scripts/network_devices_unknown.csv
+```
+
+What it does:
+
+- probes likely live hosts on TCP 22/443 by default
+- fingerprints devices as `aruba_6300`, `cisco_3700`, or `fortigate` where possible
+- writes unrecognized hosts to `network_devices_unknown.csv` for manual review
+
+---
+
 ## 3) Provide passwords
 
 You can pass passwords using CLI args, env vars, or Azure Key Vault.
